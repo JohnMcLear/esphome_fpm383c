@@ -1,0 +1,143 @@
+# Two-reader FPM383C example. Each reader gets its own UART, hub
+# instance, and full set of HA entities — the hubs are completely
+# independent (separate state machines, separate watchdogs, separate
+# slot-number entities, separate LED control).
+#
+# This config has not been hardware-tested with two physical readers
+# yet (the development rig was single-reader). Reader B's pin choices
+# below are the documented defaults — verify against your board's
+# pinout and adjust if needed.
+#
+# Pin choices for reader B (avoid GPIO0/45/46 strapping pins, the
+# USB-JTAG GPIO19/20 pair, and flash/PSRAM pins):
+#   FPM383C-B pin 4 (TX)  -> ESP GPIO16 (RX)
+#   FPM383C-B pin 5 (RX)  -> ESP GPIO15 (TX)
+# Reader A is wired identically to the single-reader example
+# (GPIO17/GPIO18). Both modules share the 3V3 and GND rails.
+
+esphome:
+  name: fpm383c-dual
+  friendly_name: "FPM383C Dual Reader"
+
+external_components:
+  - source: github://JohnMcLear/esphome_fpm383c
+    components: [fpm383c]
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "FPM383C Dual Fallback"
+    password: !secret ota_password
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+uart:
+  - id: fpm_uart_a
+    tx_pin: GPIO17
+    rx_pin: GPIO18
+    baud_rate: 57600
+
+  - id: fpm_uart_b
+    tx_pin: GPIO15
+    rx_pin: GPIO16
+    baud_rate: 57600
+
+fpm383c:
+  - id: fpm_a
+    uart_id: fpm_uart_a
+    poll_interval: 500ms
+
+  - id: fpm_b
+    uart_id: fpm_uart_b
+    poll_interval: 500ms
+
+binary_sensor:
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: finger
+    name: "FPM383C A Finger"
+
+  - platform: fpm383c
+    fpm383c_id: fpm_b
+    type: finger
+    name: "FPM383C B Finger"
+
+text_sensor:
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: status
+    name: "FPM383C A Status"
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: last_match
+    name: "FPM383C A Last Match"
+
+  - platform: fpm383c
+    fpm383c_id: fpm_b
+    type: status
+    name: "FPM383C B Status"
+  - platform: fpm383c
+    fpm383c_id: fpm_b
+    type: last_match
+    name: "FPM383C B Last Match"
+
+number:
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: slot
+    name: "FPM383C A Slot"
+
+  - platform: fpm383c
+    fpm383c_id: fpm_b
+    type: slot
+    name: "FPM383C B Slot"
+
+button:
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: enroll
+    name: "FPM383C A Enroll"
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: cancel
+    name: "FPM383C A Cancel"
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: delete
+    name: "FPM383C A Delete"
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: delete_all
+    name: "FPM383C A Delete All"
+
+  - platform: fpm383c
+    fpm383c_id: fpm_b
+    type: enroll
+    name: "FPM383C B Enroll"
+  - platform: fpm383c
+    fpm383c_id: fpm_b
+    type: cancel
+    name: "FPM383C B Cancel"
+  - platform: fpm383c
+    fpm383c_id: fpm_b
+    type: delete
+    name: "FPM383C B Delete"
+  - platform: fpm383c
+    fpm383c_id: fpm_b
+    type: delete_all
+    name: "FPM383C B Delete All"

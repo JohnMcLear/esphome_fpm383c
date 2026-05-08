@@ -1,0 +1,14 @@
+# ESPHome build artefacts
+.esphome/
+build/
+*.bin
+
+# Secrets
+secrets.yaml
+examples/secrets.yaml
+
+# Editor / OS noise
+.vscode/
+.DS_Store
+__pycache__/
+*.pyc

@@ -1,0 +1,100 @@
+# Complete single-reader FPM383C example.
+#
+# Wiring on an ESP32-S3-DevKitC-1:
+#   FPM383C pin 1 (V_TOUCH)  -> 3V3
+#   FPM383C pin 3 (VCC)      -> 3V3
+#   FPM383C pin 4 (TX)       -> ESP GPIO18 (RX)
+#   FPM383C pin 5 (RX)       -> ESP GPIO17 (TX)
+#   FPM383C pin 6 (GND)      -> GND
+#
+# Pin 2 (TOUCHOUT) intentionally unused — finger detection runs over
+# UART, not the GPIO interrupt path.
+#
+# Before flashing, copy `secrets.example.yaml` to `secrets.yaml` and
+# fill in your wifi / api / ota values.
+
+esphome:
+  name: fpm383c-test
+  friendly_name: "FPM383C Test"
+
+external_components:
+  - source: github://JohnMcLear/esphome_fpm383c
+    components: [fpm383c]
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "FPM383C Test Fallback"
+    password: !secret ota_password
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+uart:
+  id: fpm_uart_a
+  tx_pin: GPIO17
+  rx_pin: GPIO18
+  baud_rate: 57600
+
+fpm383c:
+  - id: fpm_a
+    uart_id: fpm_uart_a
+    poll_interval: 500ms
+
+binary_sensor:
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: finger
+    name: "FPM383C A Finger"
+
+text_sensor:
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: status
+    name: "FPM383C A Status"
+
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: last_match
+    name: "FPM383C A Last Match"
+
+number:
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: slot
+    name: "FPM383C A Slot"
+
+button:
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: enroll
+    name: "FPM383C A Enroll"
+
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: cancel
+    name: "FPM383C A Cancel"
+
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: delete
+    name: "FPM383C A Delete"
+
+  - platform: fpm383c
+    fpm383c_id: fpm_a
+    type: delete_all
+    name: "FPM383C A Delete All"

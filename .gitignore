@@ -12,3 +12,4 @@ examples/secrets.yaml
 .DS_Store
 __pycache__/
 *.pyc
+tests/build/

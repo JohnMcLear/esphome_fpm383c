@@ -1,4 +1,5 @@
 #include "fpm383c.h"
+#include "match_sync.h"
 #include "esphome/core/log.h"
 
 #include <cstring>
@@ -26,17 +27,7 @@ static const uint8_t SYNC[8] = {0xF1, 0x1F, 0xE2, 0x2E, 0xB6, 0x6B, 0xA8, 0x8A};
 // error in non-terminal frames; only the terminal frame
 // (count=0xFF && progress=100) indicates success.
 
-// MATCH_SYNC reply layouts (Mark7888 matchSync, after 4-byte error code):
-//   payload[0]   matched (0/1)        — frame offset 21
-//   payload[1..2] score (BE)          — frame offsets 22..23
-//   payload[3]   reserved             — frame offset 24
-//   payload[4..5] fingerprint id (BE) — frame offsets 25..26
-//   then app cksum at offset 27, total frame size 28 bytes.
-// Captured 2026-05-08 (no finger):
-//   F1 1F E2 2E B6 6B A8 8A 00 11 7C 00 00 00 00 01 23 00 00 00 08 00 00 00 00 00 00 D4
-//   error code 0x00000008 = FP_ERROR_TIMEOUT (sensor waited, no finger).
-// When MATCH_SYNC fires on a finger rising edge the reply is fast and
-// the matched byte reflects the actual decision.
+// MATCH_SYNC reply layout: see match_sync.h (corrected 14 Oct 2026 from raw frames).
 
 static uint8_t frame_cksum_(uint16_t length) {
   uint16_t s = 0;
@@ -91,17 +82,7 @@ void FPM383C::send_match_sync_() {
   this->send_frame_(0x01, 0x23, nullptr, 0);
 }
 
-// MATCH_SYNC reply layout (verified 2026-05-08 against this firmware):
-//   error code at offsets 17..20 — when 0, the match succeeded.
-//   data block at offsets 21..26 (Mark7888 layout):
-//     [21]    matched (0/1) — empirically stays 0 even on success;
-//             the error code is the reliable success indicator.
-//     [22..23] score (BE) — observed 0x0127 = 295 on a successful match
-//             of slot 1.
-//     [24]    reserved
-//     [25..26] fingerprint id (BE) — slot id of the match, observed
-//             0x0001 on a slot-1 match.
-//   app cksum at offset 27.
+// MATCH_SYNC reply: decoded by decode_match_sync() in match_sync.h, which is unit tested in tests/.
 void FPM383C::handle_match_sync_reply_(const uint8_t *frame, size_t frame_size) {
   if (this->op_ != OpState::MATCHING) {
     return;  // stale
@@ -112,12 +93,12 @@ void FPM383C::handle_match_sync_reply_(const uint8_t *frame, size_t frame_size) 
     this->op_ = OpState::IDLE;
     return;
   }
-  uint32_t error = (uint32_t(frame[17]) << 24) | (uint32_t(frame[18]) << 16) |
-                   (uint32_t(frame[19]) << 8)  |  uint32_t(frame[20]);
-
-  if (error == 0) {
-    uint16_t score = (uint16_t(frame[22]) << 8) | uint16_t(frame[23]);
-    uint16_t id    = (uint16_t(frame[25]) << 8) | uint16_t(frame[26]);
+  // Fail closed: error 0 only means the command ran. The decision is the result word (bytes 21..22).
+  const MatchSyncResult m = decode_match_sync(frame, frame_size);
+  const uint32_t error = m.error;
+  if (m.matched) {
+    const uint16_t score = m.score;
+    const uint16_t id = m.id;
     ESP_LOGD(TAG, "match: slot=%u score=%u", (unsigned) id, (unsigned) score);
     char buf[32];
     snprintf(buf, sizeof(buf), "match: slot %u", (unsigned) id);
@@ -129,7 +110,7 @@ void FPM383C::handle_match_sync_reply_(const uint8_t *frame, size_t frame_size) 
     }
     this->send_led_(0x01, 0x01, 1000);  // solid green 1 s
   } else {
-    ESP_LOGD(TAG, "no match (error=0x%08X)", (unsigned) error);
+    ESP_LOGD(TAG, "no match (error=0x%08X result=0x%04X)", (unsigned) error, (unsigned) m.result);
     this->set_status_("no match");
     this->send_led_(0x01, 0x02, 1000);  // solid red 1 s
   }

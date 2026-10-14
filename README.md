@@ -5,8 +5,15 @@ module. Exposes the sensor's full operational surface to Home Assistant:
 finger detection, identification, enrollment, deletion, and per-operation
 status — all driven by a single hub class over UART.
 
-> **Status:** Working on a real FPM383C wired to an ESP32-S3-DevKitC-1.
-> Not yet production-hardened — see [Security](#security) before deploying.
+> **Status:** Runs on a real FPM383C (ESP32-S3-DevKitC-1, and ESP32-P4 through a WK2132 I2C-UART bridge).
+> Not yet production-hardened. See [Security](#security) before deploying.
+>
+> **Security advisory, 14 Oct 2026: versions before this fix reported a match for ANY finger.** The `MATCH_SYNC`
+> reply was decoded wrongly: an error code of 0 was taken as "matched", but 0 only means the command ran. A
+> non-enrolled finger returned error 0 with result 0 and a stale template id, which the component published as
+> `match: slot N`, fired the green LED and set `Last Match`. The decision now requires the result word
+> (bytes 21..22) to equal 1, fails closed on anything else, and is covered by host unit tests built from real frames
+> (`tests/`). If you drove anything from a match with an earlier version, update.
 
 ## What you get
 
